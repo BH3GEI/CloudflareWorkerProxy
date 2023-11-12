@@ -3,9 +3,13 @@
 ## Example of Use
 
 Access:
-https://webproxy.liyao.blog/\[the URL to be proxied, either https or http]
+
+https://webproxy.liyao.blog/<the URL to be proxied, either https or http>
+
 For example:
+
 https://webproxy.liyao.blog/https://www.jlu.edu.cn/
+
 This example link demonstrates a proxy to the official website of Jilin University.
 
 ## Usage Instructions
