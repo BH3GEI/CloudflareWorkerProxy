@@ -2,7 +2,7 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
-const myURL = new URL("https://webproxy.liyao.blog/")
+const myURL = new URL("https://webproxy.stratosphericus.workers.dev/")
 
 async function handleRequest(request) {
   const url = new URL(request.url)
@@ -32,61 +32,76 @@ async function handleRequest(request) {
   let newRequest = new Request(targetURL, {
     method: request.method,
     headers: newHeader,
-    body: request.body
+    body: request.body,
+    cf: {
+      ssl: {
+        verify: false
+      }
+    }
   })
 
-  let response = await fetch(newRequest)
+  try {
+    let response = await fetch(newRequest)
 
-  // Handle 301 and 302 redirects
-  let newRespHeader = new Headers(response.headers)
-  let location = newRespHeader.get('Location')
-  if (location) {
-    location = new URL(myURL.toString() + response.url).toString()  // Resolve relative URLs
-    newRespHeader.set('location', location)
-    
-  }
-  newRespHeader.set('origin', myURL.host.toString() + "/")
-  console.log(response)
+    // Handle 301 and 302 redirects
+    let newRespHeader = new Headers(response.headers)
+    let location = newRespHeader.get('Location')
+    if (location) {
+      location = new URL(myURL.toString() + response.url).toString()  // Resolve relative URLs
+      newRespHeader.set('location', location)
+      
+    }
+    newRespHeader.set('origin', myURL.host.toString() + "/")
+    console.log(response)
 
-  // Modify headers to allow CORS
-  newRespHeader.delete('Content-Security-Policy')
-  newRespHeader.set('Access-Control-Allow-Origin', '*')
-  newRespHeader.set('Access-Control-Allow-Methods', '*')
-  newRespHeader.set('Access-Control-Allow-Headers', '*')
+    // Modify headers to allow CORS
+    newRespHeader.delete('Content-Security-Policy')
+    newRespHeader.set('Access-Control-Allow-Origin', '*')
+    newRespHeader.set('Access-Control-Allow-Methods', '*')
+    newRespHeader.set('Access-Control-Allow-Headers', '*')
 
-  // Handle cookies
-  const setCookieHeader = newRespHeader.get('Set-Cookie')
-  if (setCookieHeader) {
-    const cookies = setCookieHeader.split(',').map(cookie => {
-      const [firstPart, ...rest] = cookie.split(';')
-      const [name, value] = firstPart.split('=')
-      return {name, value, rest: rest.join(';')}
+    // Handle cookies
+    const setCookieHeader = newRespHeader.get('Set-Cookie')
+    if (setCookieHeader) {
+      const cookies = setCookieHeader.split(',').map(cookie => {
+        const [firstPart, ...rest] = cookie.split(';')
+        const [name, value] = firstPart.split('=')
+        return {name, value, rest: rest.join(';')}
+      })
+  
+      newRespHeader.delete('Set-Cookie')
+      cookies.forEach(({name, value, rest}) => {
+        newRespHeader.append('Set-Cookie', `${name}=${value}; ${rest}`)
+      })
+    }
+
+    // Create a new response object based on the original response
+    let newResponse = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newRespHeader
     })
 
-    newRespHeader.delete('Set-Cookie')
-    cookies.forEach(({name, value, rest}) => {
-      newRespHeader.append('Set-Cookie', `${name}=${value}; ${rest}`)
+    // Rewrite links and form actions in the HTML content
+    console.log(targetURL)
+    if (newRespHeader.get('Content-Type').includes('text/html')) {
+      newResponse = new HTMLRewriter()
+        .on('a[href]', new rewriteSomething(targetURL, response, 'href'))
+        .on('form[action]', new rewriteAction(targetURL, response))
+        .on('img[src]', new rewriteSomething(targetURL, response, 'src'))
+        .transform(newResponse)
+    }
+
+    return newResponse
+  } catch (error) {
+    return new Response(`Proxy Error: ${error.message}`, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*'
+      }
     })
   }
-
-  // Create a new response object based on the original response
-  let newResponse = new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: newRespHeader
-  })
-
-  // Rewrite links and form actions in the HTML content
-  console.log(targetURL)
-  if (newRespHeader.get('Content-Type').includes('text/html')) {
-    newResponse = new HTMLRewriter()
-      .on('a[href]', new rewriteSomething(targetURL, response, 'href'))
-      .on('form[action]', new rewriteAction(targetURL, response))
-      .on('img[src]', new rewriteSomething(targetURL, response, 'src'))
-      .transform(newResponse)
-  }
-
-  return newResponse
 }
 
 class rewriteSomething {
