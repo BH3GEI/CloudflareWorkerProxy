@@ -28,6 +28,15 @@ const config = {
     enabled: true,
     // If true, will add JS to try loading resources directly when proxy fails
     autoReload: true,
+  },
+  // Special site handling
+  specialSites: {
+    wikipedia: {
+      // Enable special handling for Wikipedia domains
+      enabled: true,
+      // Domains that should receive Wikipedia-specific handling
+      domains: ['wikipedia.org', 'wikimedia.org', 'mediawiki.org']
+    }
   }
 }
 
@@ -85,6 +94,11 @@ async function handleRequest(request) {
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
     })
   }
+
+  // Check if this is a Wikipedia/Wikimedia site
+  const isWikipediaSite = config.specialSites.wikipedia.enabled && 
+    config.specialSites.wikipedia.domains.some(domain => 
+      targetURL.hostname.endsWith(domain));
 
   // Prepare request headers to emulate a real browser
   let newHeaders = new Headers()
@@ -198,6 +212,8 @@ async function handleRequest(request) {
         .on('a[href]', new LinkRewriter(targetURL, 'href', currentProxyDomain))
         .on('form[action]', new LinkRewriter(targetURL, 'action', currentProxyDomain))
         .on('img[src]', new LinkRewriter(targetURL, 'src', currentProxyDomain))
+        .on('img[srcset]', new SrcsetRewriter(targetURL, currentProxyDomain))
+        .on('source[srcset]', new SrcsetRewriter(targetURL, currentProxyDomain))
         .on('link[href]', new LinkRewriter(targetURL, 'href', currentProxyDomain))
         .on('script[src]', new LinkRewriter(targetURL, 'src', currentProxyDomain))
         .on('iframe[src]', new LinkRewriter(targetURL, 'src', currentProxyDomain))
@@ -215,6 +231,14 @@ async function handleRequest(request) {
       // Handle inline styles and attributes with URLs
       rewriter = rewriter.on('*[style]', new StyleAttributeRewriter(targetURL, currentProxyDomain))
       
+      // Add Wikipedia specific handlers if needed
+      if (isWikipediaSite) {
+        // Wikipedia uses data-src for lazy loading
+        rewriter = rewriter.on('img[data-src]', new LinkRewriter(targetURL, 'data-src', currentProxyDomain))
+        // Handle Wikipedia's specific style elements
+        rewriter = rewriter.on('style', new StyleElementRewriter(targetURL, currentProxyDomain))
+      }
+      
       // Inject scripts for fallback mechanism if enabled
       if (config.fallback.enabled && config.fallback.autoReload) {
         rewriter = rewriter.on('head', new HeadRewriter(targetURL.href))
@@ -223,12 +247,26 @@ async function handleRequest(request) {
       newResponse = rewriter.transform(newResponse)
     }
     // Handle CSS content separately to rewrite URLs
-    else if (contentType.includes('text/css')) {
+    else if (contentType.includes('text/css') || contentType.includes('application/x-stylesheet')) {
       const currentProxyDomain = url.host
       const cssText = await response.text()
       const rewrittenCSS = rewriteCSS(cssText, targetURL, currentProxyDomain)
       
       newResponse = new Response(rewrittenCSS, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: newRespHeaders
+      })
+    }
+    // Handle JavaScript to rewrite URLs directly embedded in code
+    else if (contentType.includes('application/javascript') || contentType.includes('text/javascript')) {
+      const currentProxyDomain = url.host
+      const jsText = await response.text()
+      
+      // Very simplified JS URL rewriting - this could be enhanced
+      const rewrittenJS = rewriteJavaScript(jsText, targetURL, currentProxyDomain)
+      
+      newResponse = new Response(rewrittenJS, {
         status: response.status,
         statusText: response.statusText,
         headers: newRespHeaders
@@ -360,6 +398,59 @@ class LinkRewriter {
   }
 }
 
+// Handle srcset attribute used in responsive images
+class SrcsetRewriter {
+  constructor(baseURL, proxyDomain) {
+    this.baseURL = baseURL
+    this.proxyDomain = proxyDomain
+  }
+  
+  element(element) {
+    const srcset = element.getAttribute('srcset')
+    if (!srcset) return
+    
+    try {
+      // Split the srcset attribute by commas, taking care of spaces
+      const srcsetParts = srcset.split(/,\s+/)
+      const newSrcsetParts = srcsetParts.map(part => {
+        // Each part is in format "url size"
+        const [url, size] = part.trim().split(/\s+/)
+        if (!url) return part
+        
+        // Skip data URLs
+        if (url.startsWith('data:')) return part
+        
+        // Don't modify already proxied URLs
+        if (url.startsWith(`https://${this.proxyDomain}/`)) return part
+        
+        try {
+          // Handle protocol-relative URLs
+          let normalizedUrl = url
+          if (normalizedUrl.startsWith('//')) {
+            normalizedUrl = this.baseURL.protocol + normalizedUrl
+          }
+          
+          // Convert to absolute URL
+          const absoluteURL = new URL(normalizedUrl, this.baseURL)
+          
+          // Create new proxied URL
+          const newURL = `https://${this.proxyDomain}/${absoluteURL.href}`
+          
+          // Return new URL with size if exists
+          return size ? `${newURL} ${size}` : newURL
+        } catch (e) {
+          return part // Keep original if can't parse
+        }
+      })
+      
+      // Set the new srcset attribute
+      element.setAttribute('srcset', newSrcsetParts.join(', '))
+    } catch (e) {
+      console.error(`Srcset rewrite error:`, e)
+    }
+  }
+}
+
 // Handle meta refresh and other meta tags with URLs
 class MetaContentRewriter {
   constructor(baseURL, proxyDomain) {
@@ -439,15 +530,121 @@ class StyleAttributeRewriter {
   }
 }
 
-// Helper function to rewrite URLs in CSS
+// Handle style elements with CSS content
+class StyleElementRewriter {
+  constructor(baseURL, proxyDomain) {
+    this.baseURL = baseURL
+    this.proxyDomain = proxyDomain
+  }
+  
+  element(element) {
+    // We need to rewrite all URLs in the style element
+    element.onEndTag(endTag => {
+      element.replace(endTag.before + endTag.name + endTag.after)
+    })
+  }
+  
+  text(text) {
+    // Rewrite URLs in the CSS text content
+    const rewrittenCSS = rewriteCSS(text.text, this.baseURL, this.proxyDomain)
+    text.replace(rewrittenCSS)
+  }
+}
+
+// Helper function to rewrite URLs in CSS with improved handling
 function rewriteCSS(css, baseURL, proxyDomain) {
-  // Match url(...) in CSS
-  return css.replace(/url\((['"]?)([^'")]+)(['"]?)\)/g, (match, quote1, url, quote2) => {
-    if (url.startsWith('data:')) return match
-    
+  if (!css) return css
+  
+  // First handle @import statements
+  css = css.replace(/@import\s+(?:url\(\s*['"]?([^'")]+)['"]?\s*\)|['"]([^'"]+)['"]).*/g, 
+    function(match, urlMatch, directMatch) {
+      const importUrl = urlMatch || directMatch
+      if (!importUrl) return match
+      if (importUrl.startsWith('data:')) return match
+      if (importUrl.startsWith(`https://${proxyDomain}/`)) return match
+      
+      try {
+        let normalizedUrl = importUrl
+        if (normalizedUrl.startsWith('//')) {
+          normalizedUrl = baseURL.protocol + normalizedUrl
+        }
+        
+        const absoluteURL = new URL(normalizedUrl, baseURL)
+        return match.replace(importUrl, `https://${proxyDomain}/${absoluteURL.href}`)
+      } catch (e) {
+        return match
+      }
+    }
+  )
+  
+  // Handle url() patterns
+  css = css.replace(/url\(\s*(['"]?)([^'")]+)(['"]?)\s*\)/g, 
+    function(match, quote1, url, quote2) {
+      if (!url) return match
+      if (url.startsWith('data:')) return match
+      if (url.startsWith(`https://${proxyDomain}/`)) return match
+      
+      try {
+        let normalizedUrl = url
+        if (normalizedUrl.startsWith('//')) {
+          normalizedUrl = baseURL.protocol + normalizedUrl
+        }
+        
+        const absoluteURL = new URL(normalizedUrl, baseURL)
+        return `url(${quote1}https://${proxyDomain}/${absoluteURL.href}${quote2})`
+      } catch (e) {
+        return match
+      }
+    }
+  )
+  
+  // Handle image-set() CSS function used in some modern websites
+  css = css.replace(/image-set\(\s*(?:[^)]|(?:\([^)]*\)))+\)/g, 
+    function(match) {
+      return match.replace(/url\(\s*(['"]?)([^'")]+)(['"]?)\s*\)/g, 
+        function(urlMatch, quote1, url, quote2) {
+          if (!url) return urlMatch
+          if (url.startsWith('data:')) return urlMatch
+          if (url.startsWith(`https://${proxyDomain}/`)) return urlMatch
+          
+          try {
+            let normalizedUrl = url
+            if (normalizedUrl.startsWith('//')) {
+              normalizedUrl = baseURL.protocol + normalizedUrl
+            }
+            
+            const absoluteURL = new URL(normalizedUrl, baseURL)
+            return `url(${quote1}https://${proxyDomain}/${absoluteURL.href}${quote2})`
+          } catch (e) {
+            return urlMatch
+          }
+        }
+      )
+    }
+  )
+  
+  return css
+}
+
+// Basic JavaScript URL rewriting
+function rewriteJavaScript(js, baseURL, proxyDomain) {
+  if (!js) return js
+  
+  // This is a very simplified approach and might not catch all cases
+  // A proper solution would require JS parsing, which is complex
+  
+  // Replace absolute URLs in common patterns
+  return js.replace(/'(https?:\/\/[^']+)'/g, function(match, url) {
+    if (url.startsWith(`https://${proxyDomain}/`)) return match
     try {
-      const absoluteURL = new URL(url, baseURL)
-      return `url(${quote1}https://${proxyDomain}/${absoluteURL.href}${quote2})`
+      return `'https://${proxyDomain}/${url}'`
+    } catch (e) {
+      return match
+    }
+  }).replace(/"(https?:\/\/[^"]+)"/g, function(match, url) {
+    if (url.startsWith(`https://${proxyDomain}/`)) return match
+    try {
+      return `"https://${proxyDomain}/${url}"`
     } catch (e) {
       return match
     }
@@ -496,13 +693,30 @@ class HeadRewriter {
               window.open(link.href, '_blank');
             });
           });
+          
+          // Add Wikipedia specific fixes
+          if (document.querySelector('body.mediawiki')) {
+            // Force load lazy images
+            document.querySelectorAll('img[data-src]').forEach(img => {
+              if (!img.src && img.dataset.src) {
+                img.src = img.dataset.src;
+              }
+            });
+            
+            // Fix any inline styles with backgrounds
+            document.querySelectorAll('[style*="background"]').forEach(el => {
+              // Handle any broken background images
+              if (el.style.backgroundImage) {
+                el.setAttribute('data-original-bg', el.style.backgroundImage);
+              }
+            });
+          }
         });
       </script>
     `, {html: true});
   }
 }
 
-// Return enhanced homepage HTML
 function getHomePage() {
   return new Response(`<!DOCTYPE html>
 <html lang="en">
@@ -597,13 +811,20 @@ function getHomePage() {
       </div>
     </form>
     
-    <p class="example">Examples: https://en.wikipedia.org, https://news.ycombinator.com</p>
-    
+    <p class="example">
+    Examples: 
+    <a href="https://webproxy.stratosphericus.workers.dev/https://www.tsukuba.ac.jp/">tsukuba.ac.jp/</a>, 
+    <a href="https://webproxy.stratosphericus.workers.dev/https://news.ycombinator.com">ycombinator.com</a>, 
+    <a href="https://github.com/BH3GEI/CloudflareWorkerProxy">Github Repo</a>
+</p>
+
     <div class="features">
-      <h2>Welcome!</h2>
+      <h2>Welcome! Using this site, you can:</h2>
       <ul>
         <li>Browse websites anonymously</li>
-        <li>Bypass network restrictions</li>
+        <li>Bypass some network restrictions</li>
+        <li>Do some tests for your site</li>
+
       </ul>
     </div>
   </div>
