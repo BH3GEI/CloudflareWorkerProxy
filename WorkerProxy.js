@@ -813,7 +813,8 @@ function getHomePage() {
     
     <p class="example">
     Examples: 
-    <a href="https://webproxy.stratosphericus.workers.dev/https://www.tsukuba.ac.jp/">tsukuba.ac.jp/</a>, 
+    <a href="https://webproxy.stratosphericus.workers.dev/https://www.tsukuba.ac.jp/">tsukuba.ac.jp</a>, 
+    <a href="https://webproxy.stratosphericus.workers.dev/https://www.jlu.edu.cn/">jlu.edu.cn</a>, 
     <a href="https://webproxy.stratosphericus.workers.dev/https://news.ycombinator.com">ycombinator.com</a>, 
     <a href="https://github.com/BH3GEI/CloudflareWorkerProxy">Github Repo</a>
 </p>
