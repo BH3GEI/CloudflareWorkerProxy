@@ -10,6 +10,12 @@ For example:
 
 https://webproxy.stratosphericus.workers.dev/https://www.jlu.edu.cn/
 
+You can also just visit the site and input the url manually:
+
+https://webproxy.stratosphericus.workers.dev/
+
+https://proxy.liyao.space/
+
 This example link demonstrates a proxy to the official website of Jilin University.
 
 ## Usage Instructions
