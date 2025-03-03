@@ -33,3 +33,8 @@ This example link demonstrates a proxy to the official website of Jilin Universi
 - Ensure that the Cloudflare Worker is correctly configured and can access the Internet.
 - Since this is a reverse proxy server, all requests will go through it. Therefore, make sure your Cloudflare plan includes sufficient bandwidth and processing power.
 
+
+## Request-Distribution
+<img width="736" alt="{3643D574-A15F-4CDA-B211-6C3B584D524F}" src="https://github.com/user-attachments/assets/4a81d1bc-3870-4ab8-9327-372286876824" />
+
+
