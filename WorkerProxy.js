@@ -2,123 +2,137 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
+// Configuration options
 const config = {
-  proxyDomain: 'testcf.stratosphericus.workers.dev',
-  homepage: true, 
+  // Support multiple domains
+  proxyDomains: ['webproxy.stratosphericus.workers.dev', 'proxy.liyao.space'],
+  homepage: true, // Whether to enable the homepage
+  // Domain whitelist, set to [] to allow all
   allowedDomains: [], 
 }
 
 async function handleRequest(request) {
   const url = new URL(request.url)
   
-  if (config.homepage && url.pathname === '/' && url.host === config.proxyDomain) {
+  // Check if the current domain is one of our proxy domains
+  const isProxyHost = config.proxyDomains.includes(url.host)
+  
+  // If homepage is enabled and this is a root path request, return homepage
+  if (config.homepage && url.pathname === '/' && isProxyHost) {
     return getHomePage()
   }
 
   let targetURL
   
   try {
-    // 确定目标URL
-    if (url.host === config.proxyDomain) {
-      // 从路径中提取目标URL
+    // Determine target URL
+    if (isProxyHost) {
+      // Extract target URL from path
       if (url.pathname === '/proxy' && url.searchParams.has('url')) {
-        // 处理/proxy?url=https://example.com格式
+        // Handle /proxy?url=https://example.com format
         const urlParam = url.searchParams.get('url')
         targetURL = new URL(urlParam)
       } else if (url.pathname.startsWith('/')) {
-        // 处理/https://example.com格式
+        // Handle /https://example.com format
         const path = url.pathname.substring(1)
         if (path.startsWith('http://') || path.startsWith('https://')) {
           targetURL = new URL(path)
-        } else {
-          // 处理相对路径/example.com格式，默认为https
+        } else if (path) { // Ensure path is not empty
+          // Handle relative path /example.com format, default to https
           targetURL = new URL('https://' + path)
+        } else {
+          // Empty path but not root path, possibly an error
+          return new Response('Invalid URL request', { status: 400 })
         }
       }
     } else {
-      // 直接使用请求URL
+      // Use request URL directly
       targetURL = url
     }
     
-    // 检查域名白名单
+    // Check domain whitelist
     if (config.allowedDomains.length > 0) {
       const isAllowed = config.allowedDomains.some(domain => 
         targetURL.hostname === domain || targetURL.hostname.endsWith(`.${domain}`)
       )
       if (!isAllowed) {
-        return new Response('域名不在白名单内', { status: 403 })
+        return new Response('Domain not in whitelist', { status: 403 })
       }
     }
   } catch (error) {
-    return new Response(`URL解析错误: ${error.message}`, { 
+    return new Response(`URL parsing error: ${error.message}`, { 
       status: 400, 
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
     })
   }
 
-  // 准备请求头
+  // Prepare request headers
   let newHeaders = new Headers(request.headers)
   newHeaders.set('Host', targetURL.host)
   newHeaders.set('Referer', targetURL.href)
 
-  // 创建新请求
+  // Create new request
   let newRequest = new Request(targetURL, {
     method: request.method,
     headers: newHeaders,
     body: request.body,
-    redirect: 'manual', // 手动处理重定向
+    redirect: 'manual', // Handle redirects manually
   })
 
   try {
-    // 发送请求到目标服务器
+    // Send request to target server
     let response = await fetch(newRequest)
     
-    // 处理重定向
+    // Handle redirects
     let newRespHeaders = new Headers(response.headers)
     if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) {
       const location = newRespHeaders.get('Location')
       if (location) {
         try {
-          // 处理绝对和相对URL
+          // Handle absolute and relative URLs
           const redirectURL = new URL(location, targetURL)
-          // 构建新的代理URL
-          const newLocation = `https://${config.proxyDomain}/${redirectURL.href}`
+          // Build new proxy URL, using current accessed domain
+          const currentProxyDomain = url.host
+          const newLocation = `https://${currentProxyDomain}/${redirectURL.href}`
           newRespHeaders.set('Location', newLocation)
         } catch (error) {
-          console.error('重定向URL处理错误:', error)
+          console.error('Redirect URL processing error:', error)
         }
       }
     }
     
-    // 修改CORS相关头
+    // Modify CORS related headers
     newRespHeaders.delete('Content-Security-Policy')
     newRespHeaders.delete('Content-Security-Policy-Report-Only')
     newRespHeaders.set('Access-Control-Allow-Origin', '*')
     newRespHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
     newRespHeaders.set('Access-Control-Allow-Headers', '*')
     
-    // 创建新的响应对象
+    // Create new response object
     let newResponse = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: newRespHeaders
     })
     
-    // 重写HTML内容中的链接
+    // Rewrite links in HTML content
     const contentType = newRespHeaders.get('Content-Type') || ''
     if (contentType.includes('text/html') || contentType.includes('application/xhtml+xml')) {
+      // Use current accessed domain as proxy domain
+      const currentProxyDomain = url.host
+      
       newResponse = new HTMLRewriter()
-        .on('a[href]', new LinkRewriter(targetURL, 'href'))
-        .on('form[action]', new LinkRewriter(targetURL, 'action'))
-        .on('img[src]', new LinkRewriter(targetURL, 'src'))
-        .on('link[href]', new LinkRewriter(targetURL, 'href'))
-        .on('script[src]', new LinkRewriter(targetURL, 'src'))
+        .on('a[href]', new LinkRewriter(targetURL, 'href', currentProxyDomain))
+        .on('form[action]', new LinkRewriter(targetURL, 'action', currentProxyDomain))
+        .on('img[src]', new LinkRewriter(targetURL, 'src', currentProxyDomain))
+        .on('link[href]', new LinkRewriter(targetURL, 'href', currentProxyDomain))
+        .on('script[src]', new LinkRewriter(targetURL, 'src', currentProxyDomain))
         .transform(newResponse)
     }
     
     return newResponse
   } catch (error) {
-    return new Response(`代理请求失败: ${error.message}`, {
+    return new Response(`Proxy request failed: ${error.message}`, {
       status: 500,
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
@@ -128,11 +142,12 @@ async function handleRequest(request) {
   }
 }
 
-// 统一处理链接重写
+// Unified link rewrite handling
 class LinkRewriter {
-  constructor(baseURL, attributeName) {
+  constructor(baseURL, attributeName, proxyDomain) {
     this.baseURL = baseURL
     this.attributeName = attributeName
+    this.proxyDomain = proxyDomain
   }
   
   element(element) {
@@ -140,27 +155,27 @@ class LinkRewriter {
     if (!attributeValue) return
     
     try {
-      // 构建完整URL (处理相对路径)
+      // Build complete URL (handle relative paths)
       const absoluteURL = new URL(attributeValue, this.baseURL)
       
-      // 重写为代理URL
-      const newURL = `https://${config.proxyDomain}/${absoluteURL.href}`
+      // Rewrite as proxy URL, using current accessed domain
+      const newURL = `https://${this.proxyDomain}/${absoluteURL.href}`
       element.setAttribute(this.attributeName, newURL)
     } catch (e) {
-      // 如果URL无效，保持原样
-      console.error(`URL重写错误 [${attributeValue}]:`, e)
+      // If URL is invalid, keep it as is
+      console.error(`URL rewrite error [${attributeValue}]:`, e)
     }
   }
 }
 
-// 返回简洁的主页HTML
+// Return simple homepage HTML
 function getHomePage() {
   return new Response(`<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web代理服务</title>
+  <title>Web Proxy Service</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -207,15 +222,15 @@ function getHomePage() {
   </style>
 </head>
 <body>
-  <h1>Web代理服务</h1>
-  <p>输入要访问的网址，通过此代理访问目标网站</p>
+  <h1>Web Proxy Service</h1>
+  <p>Enter the URL you want to visit through this proxy</p>
   
   <form id="proxyForm" onsubmit="navigateToProxy(event)">
     <input type="url" id="urlInput" placeholder="https://example.com" required>
-    <button type="submit">访问</button>
+    <button type="submit">Access</button>
   </form>
   
-  <p class="example">例如: https://example.com</p>
+  <p class="example">Example: https://example.com</p>
   
   <script>
     function navigateToProxy(e) {
@@ -226,7 +241,7 @@ function getHomePage() {
       }
     }
     
-    // 自动聚焦到输入框
+    // Auto-focus on input field
     document.getElementById('urlInput').focus();
   </script>
 </body>
