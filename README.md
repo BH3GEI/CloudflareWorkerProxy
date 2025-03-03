@@ -8,7 +8,11 @@ https://webproxy.stratosphericus.workers.dev/<the URL to be proxied, either http
 
 For example:
 
+https://webproxy.stratosphericus.workers.dev/https://www.tsukuba.ac.jp/
+
 https://webproxy.stratosphericus.workers.dev/https://www.jlu.edu.cn/
+
+https://webproxy.stratosphericus.workers.dev/https://news.ycombinator.com
 
 You can also just visit the site and input the url manually:
 
