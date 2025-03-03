@@ -21,7 +21,7 @@ This example link demonstrates a proxy to the official website of Jilin Universi
 ## Usage Instructions
 
 1. Deploy a worker on Cloudflare.
-2. *** Modify the value of `proxyDomains` in the code according to the actual configuration of the worker. ***
+2. **Modify the value of `proxyDomains`** in the code according to the actual configuration of the worker. 
 3. Click on 'Deploy', then use it following the method in the example of use.
 
 ## Code Structure Analysis
