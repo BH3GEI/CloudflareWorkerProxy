@@ -1,5 +1,8 @@
 # Cloudflare Worker 代理
 
+[English](README.md)
+
+
 ## 使用示例
 
 访问：
