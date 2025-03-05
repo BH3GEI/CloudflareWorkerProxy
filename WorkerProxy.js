@@ -4,14 +4,14 @@ addEventListener('fetch', event => {
 
 // Configuration options
 const config = {
-  // Support multiple domains
+  // Support multiple domains, you should modifiy this if you wish to deploy it to your own Cloudflare Worker.
   proxyDomains: ['webproxy.stratosphericus.workers.dev', 'proxy.liyao.space'],
   homepage: true, // Whether to enable the homepage
-  // Domain whitelist, set to [] to allow all
-  allowedDomains: [],
+  allowedDomains: [], // Domain whitelist, set to [] to allow all
+
+  
   // Browser emulation settings
   browserEmulation: {
-    // Common desktop browser user agent
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
     accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
     acceptLanguage: 'en-US,en;q=0.9',
@@ -23,18 +23,13 @@ const config = {
     secFetchSite: 'none',
     secFetchUser: '?1',
   },
-  // Fallback options for failed requests
   fallback: {
     enabled: true,
-    // If true, will add JS to try loading resources directly when proxy fails
     autoReload: true,
   },
-  // Special site handling
   specialSites: {
     wikipedia: {
-      // Enable special handling for Wikipedia domains
       enabled: true,
-      // Domains that should receive Wikipedia-specific handling
       domains: ['wikipedia.org', 'wikimedia.org', 'mediawiki.org']
     }
   }
