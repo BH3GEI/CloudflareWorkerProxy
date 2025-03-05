@@ -37,6 +37,6 @@ This example link demonstrates a proxy to some simple websites.
 - Make sure to modify  `proxyDomains`  in your code to fit your own domain name
 
 ## Request-Distribution
-<img width="736" alt="{3643D574-A15F-4CDA-B211-6C3B584D524F}" src="https://github.com/user-attachments/assets/4a81d1bc-3870-4ab8-9327-372286876824" />
+<img width="556" alt="{A5947BDC-F4BB-4F18-9C46-5E899E65B178}" src="https://github.com/user-attachments/assets/7f339f1d-7c14-4b75-a84d-4c88108ec95b" />
 
 
