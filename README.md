@@ -20,7 +20,7 @@ https://webproxy.stratosphericus.workers.dev/
 
 https://proxy.liyao.space/
 
-This example link demonstrates a proxy to the official website of Jilin University.
+This example link demonstrates a proxy to some simple websites.
 
 ## Usage Instructions
 
