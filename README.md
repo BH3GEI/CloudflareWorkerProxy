@@ -1,5 +1,8 @@
 # Cloudflare Worker Proxy
 
+[中文](README_CN.md)
+
+
 ## Example of Use
 
 Access:
