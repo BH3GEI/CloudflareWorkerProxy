@@ -12,18 +12,11 @@ https://webproxy.stratosphericus.workers.dev/<the URL to be proxied, either http
 https://proxy.liyao.space/<the URL to be proxied, either https or http>
 
 
-
 For example:
-
-https://webproxy.stratosphericus.workers.dev/https://www.tsukuba.ac.jp/
 
 https://proxy.liyao.space/https://www.tsukuba.ac.jp/
 
-https://webproxy.stratosphericus.workers.dev/https://www.jlu.edu.cn/
-
 https://proxy.liyao.space/https://www.jlu.edu.cn/
-
-https://webproxy.stratosphericus.workers.dev/https://news.ycombinator.com
 
 https://proxy.liyao.space/https://news.ycombinator.com
 
