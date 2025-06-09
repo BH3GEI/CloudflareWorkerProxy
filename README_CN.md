@@ -40,5 +40,3 @@ https://webproxy.stratosphericus.workers.dev/
 
 ## Request-Distribution
 <img width="736" alt="{3643D574-A15F-4CDA-B211-6C3B584D524F}" src="https://github.com/user-attachments/assets/4a81d1bc-3870-4ab8-9327-372286876824" />
-
-
