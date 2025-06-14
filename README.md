@@ -7,24 +7,23 @@
 
 Access:
 
-https://webproxy.stratosphericus.workers.dev/<the URL to be proxied, either https or http>
+https://proxy.liyao.space/-----<the URL to be proxied, either https or http>
 
-https://proxy.liyao.space/<the URL to be proxied, either https or http>
-
+https://webproxy.stratosphericus.workers.dev/-----<the URL to be proxied, either https or http>
 
 For example:
 
-https://proxy.liyao.space/https://www.tsukuba.ac.jp/
+https://proxy.liyao.space/-----https://www.tsukuba.ac.jp/
 
-https://proxy.liyao.space/https://www.jlu.edu.cn/
+https://proxy.liyao.space/-----https://www.jlu.edu.cn/
 
-https://proxy.liyao.space/https://news.ycombinator.com
+https://proxy.liyao.space/-----https://news.ycombinator.com
 
 You can also just visit the site and input the url manually:
 
-https://webproxy.stratosphericus.workers.dev/
-
 https://proxy.liyao.space/
+
+https://webproxy.stratosphericus.workers.dev/
 
 This example link demonstrates a proxy to some simple websites.
 
