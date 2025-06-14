@@ -60,21 +60,14 @@ async function handleRequest(request) {
       const ref = request.headers.get('Referer') || ''
       try {
         const refURL = new URL(ref)
-        // Expect pathname like "/https://example.com/..."  -> strip leading "/"
-        const refPath = refURL.pathname.substring(1)
-        if (refPath.startsWith('http://') || refPath.startsWith('https://')) {
-          const targetStr = refPath + url.search // append current query-string
-          // We defer actual creation of targetURL here and let the normal
-          // parsing logic below handle it by populating url.pathname and
-          // url.search, so we temporarily overwrite pathname for correctness.
-          // However, to keep changes local, we directly construct targetURL
-          // and return response later on.  We therefore set a helper variable
-          // that the later logic will pick up.
+        const inner = refURL.pathname.substring(1)
+        if (inner.startsWith('http://') || inner.startsWith('https://')) {
+          const base = new URL(inner)
+          const targetStr = `${base.origin}/${url.search}` // e.g. https://duckduckgo.com/?q=foo
           url.pathname = '/' + targetStr
         }
-      } catch (e) {
-        /* If parsing the referer fails we simply fall through and allow the
-           existing logic to handle the error path normally. */
+      } catch (_) {
+        /* ignore – fallback handled later */
       }
     }
   }
@@ -94,12 +87,48 @@ async function handleRequest(request) {
         const path = url.pathname.substring(1)
         if (path.startsWith('http://') || path.startsWith('https://')) {
           targetURL = new URL(path)
-        } else if (path) { // Ensure path is not empty
-          // Handle relative path /example.com format, default to https
-          targetURL = new URL('https://' + path)
+        } else if (path) {
+          /*
+            Handle relative paths such as "/i.js" or "/next/page" that
+            originate from within the currently proxied site.  We first try to
+            reconstruct the full base URL from the Referer header (if present)
+            so we can resolve the relative path accurately.
+          */
+          let resolved = null
+          const ref = request.headers.get('Referer') || ''
+          if (ref.startsWith(`https://${url.host}/`)) {
+            const refInner = ref.substring(`https://${url.host}/`.length)
+            if (refInner.startsWith('http://') || refInner.startsWith('https://')) {
+              try {
+                const baseRefURL = new URL(refInner)
+                resolved = new URL(path, baseRefURL) // relative resolution
+              } catch {}
+            }
+          }
+          if (resolved) {
+            targetURL = resolved
+          } else {
+            // Fallback: treat as domain and default to https
+            targetURL = new URL('https://' + path)
+          }
         } else {
-          // Empty path but not root path, possibly an error
-          return new Response('Invalid URL request', { status: 400 })
+          /*
+            Empty path but we might still have a query-string. Many sites such as
+            DuckDuckGo use root-relative URLs like "https://duckduckgo.com/?q=foo".
+            When a proxied page generates such a link we will receive a request
+            for "/?q=foo". If this happens – and there is no Referer we can use
+            to restore the full URL (handled earlier) – we treat it as a DuckDuckGo
+            search request by default so users aren't thrown back to an error page.
+          */
+          if (url.searchParams.has('q')) {
+            // Preserve all parameters so that bangs etc. keep working
+            const ddgURL = new URL('https://duckduckgo.com/')
+            url.searchParams.forEach((value, key) => ddgURL.searchParams.append(key, value))
+            targetURL = ddgURL
+          } else {
+            // Empty path with no query – invalid usage
+            return new Response('Invalid URL request', { status: 400 })
+          }
         }
       }
     } else {
@@ -781,7 +810,7 @@ function getHomePage() {
       display: flex;
       margin-bottom: 15px;
     }
-    input[type="url"] {
+    input[type="text"] {
       flex: 1;
       padding: 12px;
       font-size: 16px;
@@ -834,7 +863,7 @@ function getHomePage() {
     
     <form id="proxyForm" onsubmit="navigateToProxy(event)">
       <div class="input-group">
-        <input type="url" id="urlInput" placeholder="https://example.com" required>
+        <input type="text" id="urlInput" placeholder="example.com  或  输入关键词搜索" autocomplete="off">
         <button type="submit">Access</button>
       </div>
     </form>
@@ -861,10 +890,21 @@ function getHomePage() {
   <script>
     function navigateToProxy(e) {
       e.preventDefault();
-      const url = document.getElementById('urlInput').value.trim();
-      if (url) {
-        window.location.href = '/' + url;
+      const input = document.getElementById('urlInput').value.trim();
+      if (!input) return;
+      const hasScheme = /^https?:\/\//i.test(input);
+      const looksLikeDomain = /^[\w.-]+\.[a-z]{2,}/i.test(input);
+      let target;
+      if (hasScheme) {
+        target = input;
+      } else if (looksLikeDomain) {
+        target = 'https://' + input;
+      } else {
+        // Treat as search keyword
+        const q = encodeURIComponent(input);
+        target = 'https://duckduckgo.com/?q=' + q;
       }
+      window.location.href = '/' + target;
     }
     
     // Auto-focus on input field
