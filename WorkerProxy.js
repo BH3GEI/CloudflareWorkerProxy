@@ -6,6 +6,7 @@ addEventListener('fetch', event => {
 const config = {
   // Support multiple domains, you should modifiy this if you wish to deploy it to your own Cloudflare Worker.
   proxyDomains: ['webproxy.stratosphericus.workers.dev', 'proxy.liyao.space'],
+  separator: '------', // Delimiter between worker path and real target URL
   homepage: true, // Whether to enable the homepage
   allowedDomains: [], // Domain whitelist, set to [] to allow all
 
@@ -60,11 +61,17 @@ async function handleRequest(request) {
       const ref = request.headers.get('Referer') || ''
       try {
         const refURL = new URL(ref)
-        const inner = refURL.pathname.substring(1)
+        const rawPath = refURL.pathname.substring(1)
+        const sep = config.separator
+        let path = rawPath
+        if (rawPath.startsWith(sep)) {
+          path = rawPath.substring(sep.length)
+        }
+        const inner = path
         if (inner.startsWith('http://') || inner.startsWith('https://')) {
           const base = new URL(inner)
-          const targetStr = `${base.origin}/${url.search}` // e.g. https://duckduckgo.com/?q=foo
-          url.pathname = '/' + targetStr
+          const targetStr = `${base.origin}${url.search}` // e.g. https://duckduckgo.com/?q=foo
+          url.pathname = '/' + config.separator + targetStr
         }
       } catch (_) {
         /* ignore – fallback handled later */
@@ -83,8 +90,13 @@ async function handleRequest(request) {
         const urlParam = url.searchParams.get('url')
         targetURL = new URL(urlParam)
       } else if (url.pathname.startsWith('/')) {
-        // Handle /https://example.com format
-        const path = url.pathname.substring(1)
+        // Handle /------https://example.com format
+        const rawPath = url.pathname.substring(1)
+        const sep = config.separator
+        let path = rawPath
+        if (rawPath.startsWith(sep)) {
+          path = rawPath.substring(sep.length)
+        }
         if (path.startsWith('http://') || path.startsWith('https://')) {
           targetURL = new URL(path)
         } else if (path) {
@@ -97,7 +109,8 @@ async function handleRequest(request) {
           let resolved = null
           const ref = request.headers.get('Referer') || ''
           if (ref.startsWith(`https://${url.host}/`)) {
-            const refInner = ref.substring(`https://${url.host}/`.length)
+            let refInner = ref.substring(`https://${url.host}/`.length)
+            if (refInner.startsWith(config.separator)) refInner = refInner.substring(config.separator.length)
             if (refInner.startsWith('http://') || refInner.startsWith('https://')) {
               try {
                 const baseRefURL = new URL(refInner)
@@ -108,8 +121,45 @@ async function handleRequest(request) {
           if (resolved) {
             targetURL = resolved
           } else {
-            // Fallback: treat as domain and default to https
-            targetURL = new URL('https://' + path)
+            // Try to rebuild using Referer (root-relative request like "/?q=...")
+            let rebuilt = null
+            const ref = request.headers.get('Referer') || ''
+            if (ref.startsWith(`https://${url.host}/`)) {
+              let refInner = ref.substring(`https://${url.host}/`.length)
+              if (refInner.startsWith(config.separator)) refInner = refInner.substring(config.separator.length)
+              if (refInner.startsWith('http://') || refInner.startsWith('https://')) {
+                try {
+                  const baseOrigin = new URL(refInner).origin
+                  const rebuiltStr = `${baseOrigin}/${url.search.startsWith('?') ? url.search.substring(1) : url.search}`
+                  rebuilt = new URL(rebuiltStr)
+                } catch {}
+              }
+            }
+            
+            if (rebuilt) {
+              targetURL = rebuilt
+              // No need to modify pathname further
+            } else if (!path.includes('.') && url.search === '') {
+              // This is a plain keyword with no search string
+              targetURL = new URL('https://duckduckgo.com/?q=' + encodeURIComponent(path))
+            } else if (!path.includes('.')) {
+              // Plain keyword + existing search parameters appended to keyword search
+              const q = encodeURIComponent(path)
+              const ddg = new URL('https://duckduckgo.com/?q=' + q + '&' + url.search.substring(1))
+              targetURL = ddg
+            } else if (url.searchParams.has('q')) {
+              // Fallback to DuckDuckGo search when 'q' parameter present
+              const ddgURL = new URL('https://duckduckgo.com/')
+              url.searchParams.forEach((value, key) => ddgURL.searchParams.append(key, value))
+              targetURL = ddgURL
+            } else {
+              // Treat as domain with implied https
+              try {
+                targetURL = new URL('https://' + path)
+              } catch {
+                return new Response('Invalid URL request', { status: 400 })
+              }
+            }
           }
         } else {
           /*
@@ -221,9 +271,9 @@ async function handleRequest(request) {
         try {
           // Handle absolute and relative URLs
           const redirectURL = new URL(location, targetURL)
-          // Build new proxy URL, using current accessed domain
+          // Build new proxy URL, using current accessed domain and custom separator
           const currentProxyDomain = url.host
-          const newLocation = `https://${currentProxyDomain}/${redirectURL.href}`
+          const newLocation = `https://${currentProxyDomain}/${config.separator}${redirectURL.href}`
           newRespHeaders.set('Location', newLocation)
         } catch (error) {
           console.error('Redirect URL processing error:', error)
@@ -445,8 +495,8 @@ class LinkRewriter {
         element.setAttribute('onerror', `this.onerror=null;if(this.src!==this.dataset.originalSrc){this.src=this.dataset.originalSrc;}`)
       }
       
-      // Rewrite as proxy URL, using current accessed domain
-      const newURL = `https://${this.proxyDomain}/${absoluteURL.href}`
+      // Rewrite as proxy URL, using current accessed domain and custom separator
+      const newURL = `https://${this.proxyDomain}/${config.separator}${absoluteURL.href}`
       element.setAttribute(this.attributeName, newURL)
     } catch (e) {
       // If URL is invalid, keep it as is
@@ -491,7 +541,7 @@ class SrcsetRewriter {
           const absoluteURL = new URL(normalizedUrl, this.baseURL)
           
           // Create new proxied URL
-          const newURL = `https://${this.proxyDomain}/${absoluteURL.href}`
+          const newURL = `https://${this.proxyDomain}/${config.separator}${absoluteURL.href}`
           
           // Return new URL with size if exists
           return size ? `${newURL} ${size}` : newURL
@@ -525,7 +575,7 @@ class MetaContentRewriter {
       if (parts.length === 2) {
         try {
           const url = new URL(parts[1], this.baseURL)
-          const newURL = `https://${this.proxyDomain}/${url.href}`
+          const newURL = `https://${this.proxyDomain}/${config.separator}${url.href}`
           element.setAttribute('content', `${parts[0]};url=${newURL}`)
         } catch (e) {
           console.error(`Meta refresh URL rewrite error:`, e)
@@ -541,7 +591,7 @@ class MetaContentRewriter {
         property.includes('twitter:image'))) {
       try {
         const url = new URL(content, this.baseURL)
-        const newURL = `https://${this.proxyDomain}/${url.href}`
+        const newURL = `https://${this.proxyDomain}/${config.separator}${url.href}`
         element.setAttribute('content', newURL)
       } catch (e) {
         console.error(`Meta tag URL rewrite error:`, e)
@@ -562,7 +612,7 @@ class BaseTagRewriter {
     if (href) {
       try {
         const url = new URL(href, this.baseURL)
-        const newURL = `https://${this.proxyDomain}/${url.href}`
+        const newURL = `https://${this.proxyDomain}/${config.separator}${url.href}`
         element.setAttribute('href', newURL)
       } catch (e) {
         console.error(`Base tag URL rewrite error:`, e)
@@ -627,7 +677,7 @@ function rewriteCSS(css, baseURL, proxyDomain) {
         }
         
         const absoluteURL = new URL(normalizedUrl, baseURL)
-        return match.replace(importUrl, `https://${proxyDomain}/${absoluteURL.href}`)
+        return match.replace(importUrl, `https://${proxyDomain}/${config.separator}${absoluteURL.href}`)
       } catch (e) {
         return match
       }
@@ -648,7 +698,7 @@ function rewriteCSS(css, baseURL, proxyDomain) {
         }
         
         const absoluteURL = new URL(normalizedUrl, baseURL)
-        return `url(${quote1}https://${proxyDomain}/${absoluteURL.href}${quote2})`
+        return `url(${quote1}https://${proxyDomain}/${config.separator}${absoluteURL.href}${quote2})`
       } catch (e) {
         return match
       }
@@ -671,7 +721,7 @@ function rewriteCSS(css, baseURL, proxyDomain) {
             }
             
             const absoluteURL = new URL(normalizedUrl, baseURL)
-            return `url(${quote1}https://${proxyDomain}/${absoluteURL.href}${quote2})`
+            return `url(${quote1}https://${proxyDomain}/${config.separator}${absoluteURL.href}${quote2})`
           } catch (e) {
             return urlMatch
           }
@@ -694,14 +744,14 @@ function rewriteJavaScript(js, baseURL, proxyDomain) {
   return js.replace(/'(https?:\/\/[^']+)'/g, function(match, url) {
     if (url.startsWith(`https://${proxyDomain}/`)) return match
     try {
-      return `'https://${proxyDomain}/${url}'`
+      return `'https://${proxyDomain}/${config.separator}${url}'`
     } catch (e) {
       return match
     }
   }).replace(/"(https?:\/\/[^"]+)"/g, function(match, url) {
     if (url.startsWith(`https://${proxyDomain}/`)) return match
     try {
-      return `"https://${proxyDomain}/${url}"`
+      return `"https://${proxyDomain}/${config.separator}${url}"`
     } catch (e) {
       return match
     }
@@ -863,16 +913,16 @@ function getHomePage() {
     
     <form id="proxyForm" onsubmit="navigateToProxy(event)">
       <div class="input-group">
-        <input type="text" id="urlInput" placeholder="example.com  或  输入关键词搜索" autocomplete="off">
+        <input type="text" id="urlInput" placeholder="example.com" autocomplete="off">
         <button type="submit">Access</button>
       </div>
     </form>
     
     <p class="example">
     Examples: 
-    <a href="https://proxy.liyao.space/https://www.tsukuba.ac.jp/">tsukuba.ac.jp</a>, 
-    <a href="https://proxy.liyao.space/https://www.jlu.edu.cn/">jlu.edu.cn</a>, 
-    <a href="https://proxy.liyao.space/https://news.ycombinator.com">ycombinator.com</a>, 
+    <a href="https://proxy.liyao.space/------https://www.tsukuba.ac.jp/">tsukuba.ac.jp</a>, 
+    <a href="https://proxy.liyao.space/------https://www.jlu.edu.cn/">jlu.edu.cn</a>, 
+    <a href="https://proxy.liyao.space/------https://news.ycombinator.com">ycombinator.com</a>, 
     <a href="https://github.com/BH3GEI/CloudflareWorkerProxy">Github Repo</a>
 </p>
 
@@ -893,7 +943,7 @@ function getHomePage() {
       const input = document.getElementById('urlInput').value.trim();
       if (!input) return;
       const hasScheme = /^https?:\/\//i.test(input);
-      const looksLikeDomain = /^[\w.-]+\.[a-z]{2,}/i.test(input);
+      const looksLikeDomain = input.includes('.') && !input.startsWith(' ');
       let target;
       if (hasScheme) {
         target = input;
@@ -904,7 +954,7 @@ function getHomePage() {
         const q = encodeURIComponent(input);
         target = 'https://duckduckgo.com/?q=' + q;
       }
-      window.location.href = '/' + target;
+      window.location.href = '/'+ '------' + target;
     }
     
     // Auto-focus on input field
