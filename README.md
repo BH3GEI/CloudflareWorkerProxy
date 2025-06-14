@@ -5,13 +5,7 @@
 
 ## Example of Use
 
-Access:
-
-https://proxy.liyao.space/-----<the URL to be proxied, either https or http>
-
-https://webproxy.stratosphericus.workers.dev/-----<the URL to be proxied, either https or http>
-
-For example:
+Examples:
 
 https://proxy.liyao.space/-----https://www.tsukuba.ac.jp/
 
