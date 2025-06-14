@@ -913,7 +913,7 @@ function getHomePage() {
     
     <form id="proxyForm" onsubmit="navigateToProxy(event)">
       <div class="input-group">
-        <input type="text" id="urlInput" placeholder="example.com" autocomplete="off">
+        <input type="text" id="urlInput" placeholder="https://example.com" autocomplete="off">
         <button type="submit">Access</button>
       </div>
     </form>
@@ -923,6 +923,7 @@ function getHomePage() {
     <a href="https://proxy.liyao.space/------https://www.tsukuba.ac.jp/">tsukuba.ac.jp</a>, 
     <a href="https://proxy.liyao.space/------https://www.jlu.edu.cn/">jlu.edu.cn</a>, 
     <a href="https://proxy.liyao.space/------https://news.ycombinator.com">ycombinator.com</a>, 
+    <a href="https://proxy.liyao.space/------https://www.example.com">google.com</a>, 
     <a href="https://github.com/BH3GEI/CloudflareWorkerProxy">Github Repo</a>
 </p>
 
