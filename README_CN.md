@@ -39,4 +39,4 @@ https://webproxy.stratosphericus.workers.dev/
 - 确保在您的代码中修改 `proxyDomain` 以适合您自己的域名
 
 ## Request-Distribution
-<img width="736" alt="{3643D574-A15F-4CDA-B211-6C3B584D524F}" src="https://github.com/user-attachments/assets/4a81d1bc-3870-4ab8-9327-372286876824" />
+<img width="967" alt="image" src="https://github.com/user-attachments/assets/4f02d5ef-ecc6-4ef2-8b13-350b7787e802" />
