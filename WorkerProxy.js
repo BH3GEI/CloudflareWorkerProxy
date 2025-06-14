@@ -41,9 +41,42 @@ async function handleRequest(request) {
   // Check if the current domain is one of our proxy domains
   const isProxyHost = config.proxyDomains.includes(url.host)
   
-  // If homepage is enabled and this is a root path request, return homepage
-  if (config.homepage && url.pathname === '/' && isProxyHost) {
-    return getHomePage()
+  // If the request is for the proxy root
+  if (isProxyHost && url.pathname === '/') {
+    // a) When no query-string is present we treat it as a genuine homepage request
+    if (config.homepage && !url.search) {
+      return getHomePage()
+    }
+
+    /*
+      b) When a query-string exists (e.g. "/?q=search" coming from a proxied
+      site like DuckDuckGo) we attempt to determine the intended target by
+      inspecting the Referer header, which still contains the full proxied
+      URL including the original host. Using that information we rebuild the
+      real destination so the request will be forwarded correctly instead of
+      falling back to the homepage.
+    */
+    if (url.search) {
+      const ref = request.headers.get('Referer') || ''
+      try {
+        const refURL = new URL(ref)
+        // Expect pathname like "/https://example.com/..."  -> strip leading "/"
+        const refPath = refURL.pathname.substring(1)
+        if (refPath.startsWith('http://') || refPath.startsWith('https://')) {
+          const targetStr = refPath + url.search // append current query-string
+          // We defer actual creation of targetURL here and let the normal
+          // parsing logic below handle it by populating url.pathname and
+          // url.search, so we temporarily overwrite pathname for correctness.
+          // However, to keep changes local, we directly construct targetURL
+          // and return response later on.  We therefore set a helper variable
+          // that the later logic will pick up.
+          url.pathname = '/' + targetStr
+        }
+      } catch (e) {
+        /* If parsing the referer fails we simply fall through and allow the
+           existing logic to handle the error path normally. */
+      }
+    }
   }
 
   let targetURL
