@@ -5,19 +5,13 @@
 
 ## 使用示例
 
-访问：
+例：
 
-https://webproxy.stratosphericus.workers.dev/<要代理的URL，https或http>
+https://proxy.liyao.space/-----https://www.tsukuba.ac.jp/
 
-https://proxy.liyao.space/<要代理的URL，https或http>
+https://proxy.liyao.space/-----https://www.jlu.edu.cn/
 
-例如：
-
-https://proxy.liyao.space/https://www.tsukuba.ac.jp/
-
-https://proxy.liyao.space/https://www.jlu.edu.cn/
-
-https://proxy.liyao.space/https://news.ycombinator.com
+https://proxy.liyao.space/-----https://news.ycombinator.com
 
 您也可以访问该站点并手动输入url：
 
