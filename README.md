@@ -40,6 +40,6 @@ This example link demonstrates a proxy to some simple websites.
 - Make sure to modify  `proxyDomains`  in your code to fit your own domain name
 
 ## Request-Distribution
-<img width="556" alt="{A5947BDC-F4BB-4F18-9C46-5E899E65B178}" src="https://github.com/user-attachments/assets/7f339f1d-7c14-4b75-a84d-4c88108ec95b" />
+<img width="967" alt="image" src="https://github.com/user-attachments/assets/6d0c94af-5012-4f33-a7b5-2a5ca1218bc9" />
 
 
