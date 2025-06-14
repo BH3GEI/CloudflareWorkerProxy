@@ -923,7 +923,7 @@ function getHomePage() {
     <a href="https://proxy.liyao.space/------https://www.tsukuba.ac.jp/">tsukuba.ac.jp</a>, 
     <a href="https://proxy.liyao.space/------https://www.jlu.edu.cn/">jlu.edu.cn</a>, 
     <a href="https://proxy.liyao.space/------https://news.ycombinator.com">ycombinator.com</a>, 
-    <a href="https://proxy.liyao.space/------https://www.example.com">google.com</a>, 
+    <a href="https://proxy.liyao.space/------https://www.example.com">example.com</a>, 
     <a href="https://github.com/BH3GEI/CloudflareWorkerProxy">Github Repo</a>
 </p>
 
