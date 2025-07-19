@@ -39,4 +39,5 @@ This example link demonstrates a proxy to some simple websites.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=BH3GEI/CloudflareWorkerProxy&type=Date)](https://star-history.com/#bytebase/star-history&Date)
+
+[![Star History Chart](https://api.star-history.com/svg?repos=BH3GEI/CloudflareWorkerProxy&type=Date)](https://www.star-history.com/#BH3GEI/CloudflareWorkerProxy&Date)
