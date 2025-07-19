@@ -32,7 +32,11 @@ This example link demonstrates a proxy to some simple websites.
 - Make sure the routing configuration for Cloudflare Worker is correct
 - Make sure to modify  `proxyDomains`  in your code to fit your own domain name
 
+
 ## Request-Distribution
 <img width="967" alt="image" src="https://github.com/user-attachments/assets/6d0c94af-5012-4f33-a7b5-2a5ca1218bc9" />
 
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=BH3GEI/CloudflareWorkerProxy&type=Date)](https://star-history.com/#bytebase/star-history&Date)
