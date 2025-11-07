@@ -2,8 +2,6 @@
 
 [中文](README_CN.md)
 
-# Refactoring to serve as a node in http://mofa.ai
-
 ## Example of Use
 
 Examples:
