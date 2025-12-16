@@ -9,17 +9,17 @@ Please review the code and change the corresponding domain name and other config
 
 Examples:
 
-https://proxy.liyao.space/------https://www.tsukuba.ac.jp/
+https://do.not.use/------https://www.tsukuba.ac.jp/
 
-https://proxy.liyao.space/------https://www.jlu.edu.cn/
+https://do.not.use/------https://www.jlu.edu.cn/
 
-https://proxy.liyao.space/------https://news.ycombinator.com
+https://do.not.use/------https://news.ycombinator.com
 
 You can also just visit the site and input the url manually:
 
-https://proxy.liyao.space/
+https://do.not.use/
 
-https://webproxy.stratosphericus.workers.dev/
+https://do.not.use/
 
 This example link demonstrates a proxy to some simple websites.
 
