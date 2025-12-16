@@ -2,6 +2,9 @@
 
 [中文](README_CN.md)
 
+Please review the code and change the corresponding domain name and other configurations.
+
+
 ## Example of Use
 
 Examples:
